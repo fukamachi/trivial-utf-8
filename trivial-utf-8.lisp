@@ -154,7 +154,7 @@ extract the character starting at the given start position."
 the string it encodes." 
  (declare (type (array (unsigned-byte 8)) bytes)
            #.*optimize*)
-  (loop :with buffer = (make-string (utf-8-string-length bytes))
+  (loop :with buffer = (make-string (utf-8-string-length bytes) :element-type 'character)
         :with array-position = 0
         :with string-position = 0
         :with array-length = (length bytes)
@@ -172,7 +172,7 @@ the string it encodes."
         :finally (return buffer)))
 
 (defun read-utf-8-string (input &key null-terminated stop-at-eof
-                          char-length byte-length)
+                          (char-length -1) (byte-length -1))
   "Read utf-8 encoded data from a byte stream and construct a
 string with the characters found. When null-terminated is given
 it will stop reading at a null character, stop-at-eof tells it to
@@ -187,28 +187,28 @@ max amount of characters or bytes to read."
         (string (make-array 64 :element-type 'character
                             :adjustable t :fill-pointer 0)))
     (loop
-      (when (or (and byte-length (>= bytes-read byte-length))
-                (and char-length (= char-length (length string))))
-        (return))
-      (let ((next-char (read-byte input (not stop-at-eof) :eof)))
-        (when (or (eq next-char :eof)
-                  (and null-terminated (eq next-char 0)))
-          (return))
-        (let ((current-group (utf-8-group-size next-char)))
-          (incf bytes-read current-group)
-          (cond ((= current-group 1)
-                 (vector-push-extend (code-char next-char) string))
-                (t
-                 (setf (elt buffer 0) next-char)
-                 (loop :for i :from 1 :below current-group
-                       :for next-char = (read-byte input nil :eof)
-                       :do (when (eq next-char :eof)
-                             (error 'utf-8-decoding-error
-                                    :message "Unfinished character at end of input."))
-                       :do (setf (elt buffer i) next-char))
-                 (vector-push-extend (code-char (get-utf-8-character
-                                                 buffer current-group))
-                                     string))))))
+       (when (or (and (/= -1 byte-length) (>= bytes-read byte-length))
+		 (and (/= -1 char-length) (= char-length (length string))))
+	 (return))
+       (let ((next-char (read-byte input (not stop-at-eof) :eof)))
+	 (when (or (eq next-char :eof)
+		   (and null-terminated (eq next-char 0)))
+	   (return))
+	 (let ((current-group (utf-8-group-size next-char)))
+	   (incf bytes-read current-group)
+	   (cond ((= current-group 1)
+		  (vector-push-extend (code-char next-char) string))
+		 (t
+		  (setf (elt buffer 0) next-char)
+		  (loop :for i :from 1 :below current-group
+		     :for next-char = (read-byte input nil :eof)
+		     :do (when (eq next-char :eof)
+			   (error 'utf-8-decoding-error
+				  :message "Unfinished character at end of input."))
+		     :do (setf (elt buffer i) next-char))
+		  (vector-push-extend (code-char (get-utf-8-character
+						  buffer current-group))
+				      string))))))
     string))
 
 ;;; Copyright (c) 2006 Marijn Haverbeke

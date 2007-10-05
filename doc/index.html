@@ -58,18 +58,19 @@ utf-8 representation.</p>
 <p class="desc">Convert a byte array containing utf-8 encoded characters into the
 string it encodes.</p>
 
-<p class="def">function <tt>write-utf-8-bytes</tt> (string)</p>
+<p class="def">function <tt>write-utf-8-bytes</tt> (string output &amp;key null-terminate)</p>
 
 <p class="desc">Write a string to a byte-stream, encoding it as utf-8.</p>
 
 <p class="def">function <tt>read-utf-8-string</tt> (input &amp;key null-terminated stop-at-eof char-length byte-length)</p>
 
-<p class="desc">Read utf-8 encoded data from a byte stream and construct a string
-with the characters found. When null-terminated is given it will stop
-reading at a null character, stop-at-eof tells it to stop at the end
-of file without raising an error, and the char-length and byte-length
-parameters can be used to specify the max amount of characters or
-bytes to read.</p>
+<p class="desc">Read utf-8 encoded data from a byte stream and
+construct a string with the characters found. When
+<code>null-terminated</code> is given it will stop reading at a null
+character, <code>stop-at-eof</code> tells it to stop at the end of
+file without raising an error, and the <code>char-length</code> and
+<code>byte-length</code> parameters can be used to specify the maximum
+amount of characters or bytes to read.</p>
 
 <p class="def">function <tt>utf-8-byte-length</tt> (string) => integer</p>
 

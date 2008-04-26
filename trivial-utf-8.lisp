@@ -19,46 +19,48 @@
     '(optimize (speed 3) (safety 0) (space 0) (debug 1)
       (compilation-speed 0))))
 
+(defmacro with-simple-string-case (string &body body)
+  "Compiling some code twice, once for simple-strings and once for
+hairy strings, speeds stuff up a lot in the simple-string case."
+  `(typecase ,string
+     (simple-string ,@body)
+     (string ,@body)))
+
 (defun utf-8-byte-length (string)
   "Calculate the amount of bytes needed to encode a string."
   (declare (type string string)
            #'*optimize*)
   (let ((length (length string)))
-    (loop :for char :across string
-          :do (let ((code (char-code char)))
-                (when (> code 127)
-                  (incf length
-                        (cond ((< code 2048) 1)
-                              ((< code 65536) 2)
-                              (t 3))))))
+    (with-simple-string-case string
+      (loop :for char :across string
+            :do (let ((code (char-code char)))
+                  (when (> code 127)
+                    (incf length
+                          (cond ((< code 2048) 1)
+                                ((< code 65536) 2)
+                                (t 3)))))))
     length))
 
-(defun get-utf-8-bytes (char-code buffer &optional (start 0))
-  "Create the bytes that encode a character. Writes these bytes to
-buffer, starting at the position indicated by the optional start
-argument, and returns this start position plus the amount of bytes
-written."
-  (declare (type fixnum char-code start)
-           (type (simple-array (unsigned-byte 8)) buffer)
-           #.*optimize*)
-  (flet ((add-byte (value)
-           (setf (elt buffer start) value)
-           (incf start)))
-    (cond ((< char-code 128)
-           (add-byte char-code))
-          ((< char-code 2048)
-           (add-byte (logior #b11000000 (ldb (byte 5 6) char-code)))
-           (add-byte (logior #b10000000 (ldb (byte 6 0) char-code))))
-          ((< char-code 65536)
-           (add-byte (logior #b11100000 (ldb (byte 4 12) char-code)))
-           (add-byte (logior #b10000000 (ldb (byte 6 6) char-code)))
-           (add-byte (logior #b10000000 (ldb (byte 6 0) char-code))))
-          (t
-           (add-byte (logior #b11110000 (ldb (byte 3 18) char-code)))
-           (add-byte (logior #b10000000 (ldb (byte 6 12) char-code)))
-           (add-byte (logior #b10000000 (ldb (byte 6 6) char-code)))
-           (add-byte (logior #b10000000 (ldb (byte 6 0) char-code)))))
-    start))
+(defmacro as-utf-8-bytes (char writer)
+  "Given a character, calls the writer function for every byte in the
+encoded form of that character."
+  (let ((char-code (gensym)))
+    `(let ((,char-code (char-code ,char)))
+       (declare (type fixnum ,char-code))
+       (cond ((< ,char-code 128)
+              (,writer ,char-code))
+             ((< ,char-code 2048)
+              (,writer (logior #b11000000 (ldb (byte 5 6) ,char-code)))
+              (,writer (logior #b10000000 (ldb (byte 6 0) ,char-code))))
+             ((< ,char-code 65536)
+              (,writer (logior #b11100000 (ldb (byte 4 12) ,char-code)))
+              (,writer (logior #b10000000 (ldb (byte 6 6) ,char-code)))
+              (,writer (logior #b10000000 (ldb (byte 6 0) ,char-code))))
+             (t
+              (,writer (logior #b11110000 (ldb (byte 3 18) ,char-code)))
+              (,writer (logior #b10000000 (ldb (byte 6 12) ,char-code)))
+              (,writer (logior #b10000000 (ldb (byte 6 6) ,char-code)))
+              (,writer (logior #b10000000 (ldb (byte 6 0) ,char-code))))))))
 
 (defun string-to-utf-8-bytes (string &key null-terminate)
   "Convert a string into an array of unsigned bytes containing its
@@ -69,9 +71,14 @@ utf-8 representation."
                                (if null-terminate 1 0))
                             :element-type '(unsigned-byte 8)))
         (position 0))
-    (loop :for char :across string
-          :do (setf position (get-utf-8-bytes (char-code char)
-                                               buffer position)))
+    (declare (type (array (unsigned-byte 8)) buffer)
+             (type fixnum position))
+    (macrolet ((add-byte (byte)
+                 `(progn (setf (aref buffer position) ,byte)
+                         (incf position))))
+      (with-simple-string-case string
+        (loop :for char :across string
+              :do (as-utf-8-bytes char add-byte))))
     (when null-terminate
       (setf (elt buffer (1- (length buffer))) 0))
     buffer))
@@ -81,12 +88,11 @@ utf-8 representation."
   (declare (type string string)
            (type stream output)
            #.*optimize*)
-  (let ((buffer (make-array 4 :element-type '(unsigned-byte 8))))
-    (loop :for char :across string
-          :do (loop :for i :from 0
-                    :below (the fixnum (get-utf-8-bytes (char-code char)
-                                                         buffer))
-                    :do (write-byte (elt buffer i) output))))
+  (macrolet ((byte-out (byte)
+               `(write-byte ,byte output)))
+    (with-simple-string-case string
+      (loop :for char :across string
+            :do (as-utf-8-bytes char byte-out))))
   (when null-terminate
     (write-byte 0 output)))
 

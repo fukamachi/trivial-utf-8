@@ -21,12 +21,7 @@ character codes.</p>
 <p>The rationale for the existence of this library is that while
 Unicode-enabled implementations usually do provide some kind of
 interface to dealing with character encodings, these are typically not
-flexible or efficient enough. Specifically, SBCL's
-<tt>sb-ext:octets-to-string</tt> and <tt>string-to-octets</tt> are 10
-times slower than the equivalents in this library (and not easily
-optimized because of the way they are defined -- the
-<tt>use-value</tt> restart in particular), and do not provide a way to
-directly read or write UTF-8 from or to a stream.</p>
+terribly flexible or uniform.</p>
 
 <h2>Download and installation</h2>
 

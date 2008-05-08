@@ -1,3 +1,7 @@
+body {
+  max-width: 800px;
+  margin: .5em auto;
+}
 
 .header {
 	font-size: medium;

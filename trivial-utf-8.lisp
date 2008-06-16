@@ -116,14 +116,13 @@ starting with a given byte."
         (t (error 'utf-8-decoding-error :byte byte
                   :message "Invalid byte at start of character: 0x~X"))))
 
-(defun utf-8-string-length (bytes)
+(defun utf-8-string-length (bytes &key (start 0) (end (length bytes)))
   "Calculate the length of the string encoded by the given bytes."
   (declare (type (simple-array (unsigned-byte 8)) bytes)
            #.*optimize*)
-  (loop :with i = 0
+  (loop :with i = start
         :with string-length = 0
-        :with array-length = (length bytes)
-        :while (< i array-length)
+        :while (< i end)
         :do (progn
               (incf (the fixnum string-length) 1)
               (incf i (utf-8-group-size (elt bytes i))))
@@ -155,19 +154,18 @@ extract the character starting at the given start position."
                  (ash (six-bits (next-byte)) 6)
                  (six-bits (next-byte)))))))
 
-(defun utf-8-bytes-to-string (bytes)
+(defun utf-8-bytes-to-string (bytes &key (start 0) (end (length bytes)))
   "Convert a byte array containing utf-8 encoded characters into
 the string it encodes." 
  (declare (type (array (unsigned-byte 8)) bytes)
            #.*optimize*)
-  (loop :with buffer = (make-string (utf-8-string-length bytes) :element-type 'character)
-        :with array-position = 0
+  (loop :with buffer = (make-string (utf-8-string-length bytes :start start :end end) :element-type 'character)
+        :with array-position = start
         :with string-position = 0
-        :with array-length = (length bytes)
-        :while (< array-position array-length)
+        :while (< array-position end)
         :do (let* ((char (elt bytes array-position))
                    (current-group (utf-8-group-size char)))
-              (when (> (+ current-group array-position) array-length)
+              (when (> (+ current-group array-position) end)
                 (error 'utf-8-decoding-error
                        :message "Unfinished character at end of byte array."))
               (setf (char buffer string-position)

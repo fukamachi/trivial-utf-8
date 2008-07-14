@@ -111,7 +111,7 @@ starting with a given byte."
 
 (defun utf-8-string-length (bytes &key (start 0) (end (length bytes)))
   "Calculate the length of the string encoded by the given bytes."
-  (declare (type (simple-array (unsigned-byte 8)) bytes)
+  (declare (type (simple-array (unsigned-byte 8) (*)) bytes)
            (type fixnum start end)
            #.*optimize*)
   (loop :with i :of-type fixnum = start
@@ -125,7 +125,7 @@ starting with a given byte."
 (defun get-utf-8-character (bytes group-size &optional (start 0))
   "Given an array of bytes and the amount of bytes to use,
 extract the character starting at the given start position."
-  (declare (type (simple-array (unsigned-byte 8)) bytes)
+  (declare (type (simple-array (unsigned-byte 8) (*)) bytes)
            (type fixnum group-size start)
            #.*optimize*)
   (labels ((next-byte ()
@@ -154,7 +154,7 @@ the string it encodes."
   (declare (type vector bytes-in)
            (type fixnum start end)
            #.*optimize*)
-  (loop :with bytes = (coerce bytes-in '(simple-array (unsigned-byte 8)))
+  (loop :with bytes = (coerce bytes-in '(simple-array (unsigned-byte 8) (*)))
         :with buffer = (make-string (utf-8-string-length bytes :start start :end end) :element-type 'character)
         :with array-position :of-type fixnum = start
         :with string-position :of-type fixnum = 0

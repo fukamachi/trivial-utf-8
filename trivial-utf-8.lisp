@@ -4,13 +4,13 @@
 
 (defpackage :trivial-utf-8
   (:use :common-lisp)
-  (:export :utf-8-byte-length
-           :string-to-utf-8-bytes
-           :write-utf-8-bytes
-           :utf-8-group-size
-           :utf-8-bytes-to-string
-           :read-utf-8-string
-           :utf-8-decoding-error))
+  (:export #:utf-8-byte-length
+           #:string-to-utf-8-bytes
+           #:write-utf-8-bytes
+           #:utf-8-group-size
+           #:utf-8-bytes-to-string
+           #:read-utf-8-string
+           #:utf-8-decoding-error))
 
 (in-package :trivial-utf-8)
 
@@ -19,26 +19,19 @@
     '(optimize (speed 3) (safety 0) (space 0) (debug 1)
       (compilation-speed 0))))
 
-(defmacro with-simple-string-case (string &body body)
-  "Compiling some code twice, once for simple-strings and once for
-hairy strings, speeds stuff up a lot in the simple-string case."
-  `(typecase ,string
-     (simple-string ,@body)
-     (string ,@body)))
-
 (defun utf-8-byte-length (string)
   "Calculate the amount of bytes needed to encode a string."
   (declare (type string string)
            #'*optimize*)
-  (let ((length (length string)))
-    (with-simple-string-case string
-      (loop :for char :across string
-            :do (let ((code (char-code char)))
-                  (when (> code 127)
-                    (incf length
-                          (cond ((< code 2048) 1)
-                                ((< code 65536) 2)
-                                (t 3)))))))
+  (let ((length (length string))
+        (string (coerce string 'simple-string)))
+    (loop :for char :across string
+          :do (let ((code (char-code char)))
+                (when (> code 127)
+                  (incf length
+                        (cond ((< code 2048) 1)
+                              ((< code 65536) 2)
+                              (t 3))))))
     length))
 
 (defmacro as-utf-8-bytes (char writer)
@@ -70,15 +63,15 @@ utf-8 representation."
   (let ((buffer (make-array (+ (the fixnum (utf-8-byte-length string))
                                (if null-terminate 1 0))
                             :element-type '(unsigned-byte 8)))
-        (position 0))
+        (position 0)
+        (string (coerce string 'simple-string)))
     (declare (type (array (unsigned-byte 8)) buffer)
              (type fixnum position))
     (macrolet ((add-byte (byte)
                  `(progn (setf (aref buffer position) ,byte)
                          (incf position))))
-      (with-simple-string-case string
-        (loop :for char :across string
-              :do (as-utf-8-bytes char add-byte))))
+      (loop :for char :across string
+            :do (as-utf-8-bytes char add-byte)))
     (when null-terminate
       (setf (elt buffer (1- (length buffer))) 0))
     buffer))
@@ -90,7 +83,7 @@ utf-8 representation."
            #.*optimize*)
   (macrolet ((byte-out (byte)
                `(write-byte ,byte output)))
-    (with-simple-string-case string
+    (let ((string (coerce string 'simple-string)))
       (loop :for char :across string
             :do (as-utf-8-bytes char byte-out))))
   (when null-terminate
@@ -119,8 +112,9 @@ starting with a given byte."
 (defun utf-8-string-length (bytes &key (start 0) (end (length bytes)))
   "Calculate the length of the string encoded by the given bytes."
   (declare (type (simple-array (unsigned-byte 8)) bytes)
+           (type fixnum start end)
            #.*optimize*)
-  (loop :with i = start
+  (loop :with i :of-type fixnum = start
         :with string-length = 0
         :while (< i end)
         :do (progn
@@ -154,14 +148,16 @@ extract the character starting at the given start position."
                  (ash (six-bits (next-byte)) 6)
                  (six-bits (next-byte)))))))
 
-(defun utf-8-bytes-to-string (bytes &key (start 0) (end (length bytes)))
+(defun utf-8-bytes-to-string (bytes-in &key (start 0) (end (length bytes-in)))
   "Convert a byte array containing utf-8 encoded characters into
 the string it encodes." 
- (declare (type (array (unsigned-byte 8)) bytes)
+  (declare (type vector bytes-in)
+           (type fixnum start end)
            #.*optimize*)
-  (loop :with buffer = (make-string (utf-8-string-length bytes :start start :end end) :element-type 'character)
-        :with array-position = start
-        :with string-position = 0
+  (loop :with bytes = (coerce bytes-in '(simple-array (unsigned-byte 8)))
+        :with buffer = (make-string (utf-8-string-length bytes :start start :end end) :element-type 'character)
+        :with array-position :of-type fixnum = start
+        :with string-position :of-type fixnum = 0
         :while (< array-position end)
         :do (let* ((char (elt bytes array-position))
                    (current-group (utf-8-group-size char)))
@@ -190,6 +186,7 @@ max amount of characters or bytes to read."
         (bytes-read 0)
         (string (make-array 64 :element-type 'character
                             :adjustable t :fill-pointer 0)))
+    (declare (type fixnum bytes-read))
     (loop
        (when (or (and (/= -1 byte-length) (>= bytes-read byte-length))
 		 (and (/= -1 char-length) (= char-length (length string))))

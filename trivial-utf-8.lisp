@@ -141,7 +141,7 @@ extract the character starting at the given start position."
              (test-overlong (byte min-size)
                (let ((b (gensym)))
                  `(let ((,b ,byte))
-                    (unless (> ,b ,min-size)
+                    (unless (>= ,b ,min-size)
                       (error 'utf-8-decoding-error :byte ,b
                              :message "Overlong byte sequence found."))
                     ,b))))
